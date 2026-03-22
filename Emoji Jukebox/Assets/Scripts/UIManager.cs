@@ -134,8 +134,6 @@ public class UIManager : MonoBehaviour
     {
         ShowOnly(passPanel);
 
-        var guesser = GameManager.Instance.GetGuesser();
-        passText.text = "Pass the device to " + guesser.playerName + ".";
     }
 
     public void OnReadyPressed()
@@ -147,8 +145,7 @@ public class UIManager : MonoBehaviour
     {
         ShowOnly(guessPanel);
 
-        var guesser = GameManager.Instance.GetGuesser();
-        guessTurnText.text = guesser.playerName + ", guess the song!";
+ 
         PopulateImageContainer(guessClueDisplayArea, GameManager.Instance.currentEmojiClues);
         guessInput.text = "";
     }
