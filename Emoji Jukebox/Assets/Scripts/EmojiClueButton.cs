@@ -20,6 +20,8 @@ public class EmojiClueButton : MonoBehaviour
         }
 
         Debug.Log("Emoji clicked: " + gameObject.name);
-        GameManager.Instance.AddEmojiClue(image.sprite);
+
+        GameManager.Instance.AddPendingEmoji(image.sprite);
+        UIManager.Instance.RefreshClueSetupPanel();
     }
 }

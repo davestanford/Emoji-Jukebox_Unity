@@ -9,22 +9,56 @@ public class UIManager : MonoBehaviour
     public static UIManager Instance;
 
     [Header("Panels")]
+    public GameObject mainMenuPanel;
     public GameObject startPanel;
+    public GameObject songDraftPanel;
+    public GameObject lookAwayPanel;
     public GameObject clueSetupPanel;
     public GameObject passPanel;
     public GameObject guessPanel;
     public GameObject resultPanel;
+    public GameObject songLibraryPanel;
+    public GameObject emojiPickerPanel;
+    public GameObject pausePanel;
+    public GameObject howToPlayPanel;
+    public GameObject aboutPanel;
 
     [Header("Start Panel")]
     public TMP_InputField player1Input;
     public TMP_InputField player2Input;
 
+    [Header("Song Draft Panel")]
+    public TMP_Text draftTurnText;
+    public TMP_Text draftPoolCountText;
+    public TMP_Text draftErrorText;
+    public TMP_InputField draftSongInput;
+    public Transform draftSongListContainer;
+    public GameObject draftSongListItemPrefab;
+    public Button startMatchButton;
+
+    [Header("Look Away Panel")]
+    public TMP_Text lookAwayText;
+
     [Header("Clue Setup Panel")]
-    public TMP_Text turnText;
-    public TMP_Text instructionText;
-    public TMP_InputField songAnswerInput;
-    public Transform currentClueDisplayArea;
+    public TMP_Text clueSetupTurnText;
+    public TMP_Text clueSetupInstructionText;
+    public TMP_Text selectedSongText;
+    public Transform selectedEmojiDisplayArea;
     public GameObject clueImagePrefab;
+    public Button confirmRoundButton;
+
+    [Header("Song Library Panel")]
+    public TMP_Text songLibraryTitleText;
+    public TMP_Text songLibraryCountText;
+    public Transform songLibraryListContainer;
+    public GameObject songLibraryButtonPrefab;
+
+    [Header("Emoji Picker Panel")]
+    public TMP_Text emojiPickerTitleText;
+    public TMP_Text emojiPickerCountText;
+    public Transform emojiPickerOptionsContainer;
+    public Transform emojiPickerSelectedContainer;
+    public GameObject emojiButtonPrefab;
 
     [Header("Pass Panel")]
     public TMP_Text passText;
@@ -32,11 +66,20 @@ public class UIManager : MonoBehaviour
     [Header("Guess Panel")]
     public TMP_Text guessTurnText;
     public Transform guessClueDisplayArea;
-    public TMP_InputField guessInput;
+    public Transform guessSongListContainer;
+    public GameObject guessSongButtonPrefab;
+    public TMP_Text selectedGuessText;
+    public Button submitGuessButton;
 
     [Header("Result Panel")]
     public TMP_Text resultText;
     public TMP_Text scoreText;
+
+    [Header("Pause Panel")]
+    public TMP_Text pauseTitleText;
+
+    private bool pauseVisible = false;
+    private string selectedGuessSong = "";
 
     private void Awake()
     {
@@ -48,21 +91,63 @@ public class UIManager : MonoBehaviour
 
     private void Start()
     {
-        ShowOnly(startPanel);
+        ShowMainMenu();
     }
 
-    void ShowOnly(GameObject panelToShow)
+    private void Update()
     {
-        startPanel.SetActive(false);
-        clueSetupPanel.SetActive(false);
-        passPanel.SetActive(false);
-        guessPanel.SetActive(false);
-        resultPanel.SetActive(false);
-
-        panelToShow.SetActive(true);
+        HandleKeyboardInput();
     }
 
-    void ClearImageContainer(Transform container)
+    // --------------------------------------------------
+    // PANEL VISIBILITY
+    // --------------------------------------------------
+
+    private void HideAllPanels()
+    {
+        if (mainMenuPanel != null) mainMenuPanel.SetActive(false);
+        if (startPanel != null) startPanel.SetActive(false);
+        if (songDraftPanel != null) songDraftPanel.SetActive(false);
+        if (lookAwayPanel != null) lookAwayPanel.SetActive(false);
+        if (clueSetupPanel != null) clueSetupPanel.SetActive(false);
+        if (passPanel != null) passPanel.SetActive(false);
+        if (guessPanel != null) guessPanel.SetActive(false);
+        if (resultPanel != null) resultPanel.SetActive(false);
+        if (songLibraryPanel != null) songLibraryPanel.SetActive(false);
+        if (emojiPickerPanel != null) emojiPickerPanel.SetActive(false);
+        if (pausePanel != null) pausePanel.SetActive(false);
+        if (howToPlayPanel != null) howToPlayPanel.SetActive(false);
+        if (aboutPanel != null) aboutPanel.SetActive(false);
+    }
+
+    private void ShowOnly(GameObject panelToShow)
+    {
+        HideAllPanels();
+
+        if (panelToShow != null)
+            panelToShow.SetActive(true);
+
+        pauseVisible = false;
+        Time.timeScale = 1f;
+    }
+
+    private void ShowPopup(GameObject popupToShow)
+    {
+        if (popupToShow != null)
+            popupToShow.SetActive(true);
+    }
+
+    private void HidePopup(GameObject popupToHide)
+    {
+        if (popupToHide != null)
+            popupToHide.SetActive(false);
+    }
+
+    // --------------------------------------------------
+    // IMAGE / EMOJI DISPLAY
+    // --------------------------------------------------
+
+    private void ClearObjectContainer(Transform container)
     {
         if (container == null) return;
 
@@ -72,14 +157,18 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    void PopulateImageContainer(Transform container, List<Sprite> clues)
+    private void PopulateImageContainer(Transform container, List<Sprite> clues)
     {
         if (container == null || clueImagePrefab == null) return;
 
-        ClearImageContainer(container);
+        ClearObjectContainer(container);
+
+        if (clues == null) return;
 
         foreach (Sprite clueSprite in clues)
         {
+            if (clueSprite == null) continue;
+
             GameObject newImageObj = Instantiate(clueImagePrefab, container);
             Image imageComp = newImageObj.GetComponent<Image>();
 
@@ -91,92 +180,544 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    public void OnStartGamePressed()
+    // --------------------------------------------------
+    // MAIN MENU
+    // --------------------------------------------------
+
+    public void ShowMainMenu()
     {
-        GameManager.Instance.StartGame(player1Input.text, player2Input.text);
+        ShowOnly(mainMenuPanel);
+
+        if (GameManager.Instance != null)
+            GameManager.Instance.currentPhase = RoundPhase.MainMenu;
     }
 
-    public void ShowClueSetup()
+    public void OnMainMenuStartPressed()
+    {
+        ShowStartPanel();
+    }
+
+    public void ShowStartPanel()
+    {
+        ShowOnly(startPanel);
+    }
+
+    public void OnBeginPlayerSetupPressed()
+    {
+        string p1 = player1Input != null ? player1Input.text : "Player 1";
+        string p2 = player2Input != null ? player2Input.text : "Player 2";
+
+        if (string.IsNullOrWhiteSpace(p1)) p1 = "Player 1";
+        if (string.IsNullOrWhiteSpace(p2)) p2 = "Player 2";
+
+        GameManager.Instance.StartGame(p1, p2);
+        ShowSongDraftPanel();
+    }
+
+    public void OnHowToPlayPressed()
+    {
+        ShowOnly(howToPlayPanel);
+    }
+
+    public void OnAboutPressed()
+    {
+        ShowOnly(aboutPanel);
+    }
+
+    public void OnBackToMainMenuPressed()
+    {
+        ShowMainMenu();
+    }
+
+    public void OnExitGamePressed()
+    {
+        Application.Quit();
+    }
+
+    // --------------------------------------------------
+    // SONG DRAFT PANEL
+    // --------------------------------------------------
+
+    public void ShowSongDraftPanel()
+    {
+        ShowOnly(songDraftPanel);
+        RefreshSongDraftPanel();
+    }
+
+    public void RefreshSongDraftPanel()
+    {
+        if (GameManager.Instance == null) return;
+
+        if (draftTurnText != null)
+            draftTurnText.text = GameManager.Instance.GetCurrentDraftPlayerName() + ", add a song";
+
+        if (draftPoolCountText != null)
+            draftPoolCountText.text = "Songs: " + GameManager.Instance.songPool.Count + " / " + GameManager.Instance.maxSongsInPool;
+
+        if (startMatchButton != null)
+            startMatchButton.interactable = GameManager.Instance.IsSongPoolFull();
+
+        if (draftErrorText != null)
+            draftErrorText.text = "";
+
+        if (draftSongInput != null)
+            draftSongInput.text = "";
+
+        RefreshDraftSongList();
+    }
+
+    private void RefreshDraftSongList()
+    {
+        if (draftSongListContainer == null || draftSongListItemPrefab == null) return;
+
+        ClearObjectContainer(draftSongListContainer);
+
+        foreach (string song in GameManager.Instance.songPool)
+        {
+            GameObject item = Instantiate(draftSongListItemPrefab, draftSongListContainer);
+
+            TMP_Text textComp = item.GetComponentInChildren<TMP_Text>();
+            if (textComp != null)
+                textComp.text = song;
+        }
+    }
+
+    public void OnAddDraftSongPressed()
+    {
+        if (draftSongInput == null) return;
+
+        bool success = GameManager.Instance.AddSongToPool(draftSongInput.text);
+
+        if (!success)
+        {
+            if (draftErrorText != null)
+                draftErrorText.text = "Enter a unique song title.";
+            return;
+        }
+
+        RefreshSongDraftPanel();
+    }
+
+    public void OnSkipDraftSongPressed()
+    {
+        GameManager.Instance.SkipSongDraftTurn();
+        RefreshSongDraftPanel();
+    }
+
+    public void OnBeginMatchPressed()
+    {
+        if (!GameManager.Instance.IsSongPoolFull())
+            return;
+
+        GameManager.Instance.StartRoundSetup();
+        ShowLookAwayPanel();
+    }
+
+    // --------------------------------------------------
+    // LOOK AWAY PANEL
+    // --------------------------------------------------
+
+    public void ShowLookAwayPanel()
+    {
+        ShowOnly(lookAwayPanel);
+
+        if (GameManager.Instance != null)
+            GameManager.Instance.currentPhase = RoundPhase.LookAway;
+
+        if (lookAwayText != null)
+        {
+            lookAwayText.text =
+                "PLAYER 2 LOOK AWAY\n\n" +
+                GameManager.Instance.GetCurrentTurnPlayerName() +
+                ", choose your song and emoji clues.\n\n" +
+                "Press continue when ready.";
+        }
+    }
+
+    public void OnContinueToClueSetupPressed()
+    {
+        if (GameManager.Instance != null)
+            GameManager.Instance.BeginClueSetup();
+
+        ShowClueSetupPanel();
+    }
+
+    // --------------------------------------------------
+    // CLUE SETUP PANEL
+    // --------------------------------------------------
+
+    public void ShowClueSetupPanel()
     {
         ShowOnly(clueSetupPanel);
+        RefreshClueSetupPanel();
 
-        var giver = GameManager.Instance.GetClueGiver();
-        turnText.text = giver.playerName + "'s Turn";
-        instructionText.text = "Enter a song and choose emoji clues.";
-        songAnswerInput.text = "";
-        ClearImageContainer(currentClueDisplayArea);
+        if (songLibraryPanel != null) songLibraryPanel.SetActive(false);
+        if (emojiPickerPanel != null) emojiPickerPanel.SetActive(false);
     }
 
-    public void UpdateClueDisplay(List<Sprite> clues)
+    public void RefreshClueSetupPanel()
     {
-        PopulateImageContainer(currentClueDisplayArea, clues);
+        if (clueSetupTurnText != null)
+            clueSetupTurnText.text = GameManager.Instance.GetCurrentTurnPlayerName() + ", set up your clue";
+
+        if (clueSetupInstructionText != null)
+            clueSetupInstructionText.text = "Choose a song and emoji clues.";
+
+        if (selectedSongText != null)
+        {
+            if (string.IsNullOrWhiteSpace(GameManager.Instance.pendingSong))
+                selectedSongText.text = "No song selected";
+            else
+                selectedSongText.text = GameManager.Instance.pendingSong;
+        }
+
+        PopulateImageContainer(selectedEmojiDisplayArea, GameManager.Instance.pendingEmojiClues);
+
+        if (confirmRoundButton != null)
+        {
+            bool hasSong = !string.IsNullOrWhiteSpace(GameManager.Instance.pendingSong);
+            bool hasEmojis = GameManager.Instance.pendingEmojiClues != null &&
+                             GameManager.Instance.pendingEmojiClues.Count > 0;
+
+            confirmRoundButton.interactable = hasSong && hasEmojis;
+        }
     }
 
-    public void OnDoneCluesPressed()
+    public void OnOpenSongLibraryPressed()
     {
-        string answer = songAnswerInput.text;
-
-        if (string.IsNullOrWhiteSpace(answer))
-            return;
-
-        if (GameManager.Instance.currentEmojiClues.Count == 0)
-            return;
-
-        GameManager.Instance.FinishClueSetup(answer);
+        RefreshSongLibraryPanel();
+        ShowPopup(songLibraryPanel);
     }
 
-    public void OnClearCluesPressed()
+    public void OnCloseSongLibraryPressed()
     {
-        GameManager.Instance.ClearClues();
+        HidePopup(songLibraryPanel);
     }
 
-    public void ShowPassDevice()
+    public void OnOpenEmojiPickerPressed()
+    {
+        RefreshEmojiPickerPanel();
+        ShowPopup(emojiPickerPanel);
+    }
+
+    public void OnCloseEmojiPickerPressed()
+    {
+        HidePopup(emojiPickerPanel);
+    }
+
+    public void OnClearSelectedSongPressed()
+    {
+        GameManager.Instance.ClearPendingSong();
+        RefreshClueSetupPanel();
+    }
+
+    public void OnClearSelectedEmojisPressed()
+    {
+        GameManager.Instance.ClearPendingEmojis();
+        RefreshClueSetupPanel();
+        RefreshEmojiPickerPanel();
+    }
+
+    public void OnConfirmRoundPressed()
+    {
+        bool success = GameManager.Instance.ConfirmRoundSetup();
+        if (!success) return;
+
+        ShowPassPanel();
+    }
+
+    // --------------------------------------------------
+    // SONG LIBRARY PANEL
+    // --------------------------------------------------
+
+    public void RefreshSongLibraryPanel()
+    {
+        if (songLibraryTitleText != null)
+            songLibraryTitleText.text = "Choose a Song";
+
+        if (songLibraryCountText != null)
+            songLibraryCountText.text = "Songs Left: " + GameManager.Instance.songPool.Count;
+
+        if (songLibraryListContainer == null || songLibraryButtonPrefab == null) return;
+
+        ClearObjectContainer(songLibraryListContainer);
+
+        foreach (string song in GameManager.Instance.songPool)
+        {
+            GameObject buttonObj = Instantiate(songLibraryButtonPrefab, songLibraryListContainer);
+
+            TMP_Text textComp = buttonObj.GetComponentInChildren<TMP_Text>();
+            if (textComp != null)
+                textComp.text = song;
+
+            Button buttonComp = buttonObj.GetComponent<Button>();
+            if (buttonComp != null)
+            {
+                string capturedSong = song;
+                buttonComp.onClick.RemoveAllListeners();
+                buttonComp.onClick.AddListener(() => OnSongLibrarySongPressed(capturedSong));
+            }
+        }
+    }
+
+    public void OnSongLibrarySongPressed(string songTitle)
+    {
+        GameManager.Instance.SetPendingSong(songTitle);
+        HidePopup(songLibraryPanel);
+        RefreshClueSetupPanel();
+    }
+
+    // --------------------------------------------------
+    // EMOJI PICKER PANEL
+    // --------------------------------------------------
+
+    public void RefreshEmojiPickerPanel()
+    {
+        if (emojiPickerTitleText != null)
+            emojiPickerTitleText.text = "Choose Emoji Clues";
+
+        if (emojiPickerCountText != null)
+        {
+            int optionCount = GameManager.Instance.currentRoundEmojiOptions != null
+                ? GameManager.Instance.currentRoundEmojiOptions.Count
+                : 0;
+
+            emojiPickerCountText.text = "Emoji Options: " + optionCount;
+        }
+
+        RefreshEmojiOptionButtons();
+        PopulateImageContainer(emojiPickerSelectedContainer, GameManager.Instance.pendingEmojiClues);
+    }
+
+    private void RefreshEmojiOptionButtons()
+    {
+        if (emojiPickerOptionsContainer == null || emojiButtonPrefab == null) return;
+
+        ClearObjectContainer(emojiPickerOptionsContainer);
+
+        List<Sprite> emojiOptions = GameManager.Instance.currentRoundEmojiOptions;
+        if (emojiOptions == null) return;
+
+        foreach (Sprite emojiSprite in emojiOptions)
+        {
+            if (emojiSprite == null) continue;
+
+            GameObject buttonObj = Instantiate(emojiButtonPrefab, emojiPickerOptionsContainer);
+
+            Image imageComp = buttonObj.GetComponent<Image>();
+            if (imageComp != null)
+            {
+                imageComp.sprite = emojiSprite;
+                imageComp.preserveAspect = true;
+            }
+
+            Button buttonComp = buttonObj.GetComponent<Button>();
+            if (buttonComp != null)
+            {
+                Sprite capturedSprite = emojiSprite;
+                buttonComp.onClick.RemoveAllListeners();
+                buttonComp.onClick.AddListener(() => OnEmojiOptionPressed(capturedSprite));
+            }
+        }
+    }
+
+    public void OnEmojiOptionPressed(Sprite emojiSprite)
+    {
+        GameManager.Instance.AddPendingEmoji(emojiSprite);
+        RefreshEmojiPickerPanel();
+        RefreshClueSetupPanel();
+    }
+
+    public void OnConfirmEmojiPickerPressed()
+    {
+        HidePopup(emojiPickerPanel);
+        RefreshClueSetupPanel();
+    }
+
+    // --------------------------------------------------
+    // PASS PANEL
+    // --------------------------------------------------
+
+    public void ShowPassPanel()
     {
         ShowOnly(passPanel);
 
+        if (passText != null)
+            passText.text = GameManager.Instance.GetGuesserName() + ", get ready to guess";
     }
 
-    public void OnReadyPressed()
+    public void OnReadyToGuessPressed()
     {
         GameManager.Instance.BeginGuessing();
+        ShowGuessPanel();
     }
+
+    // --------------------------------------------------
+    // GUESS PANEL
+    // --------------------------------------------------
 
     public void ShowGuessPanel()
     {
         ShowOnly(guessPanel);
 
- 
+        selectedGuessSong = "";
+
+        if (guessTurnText != null)
+            guessTurnText.text = GameManager.Instance.GetGuesserName() + ", guess the song";
+
+        if (selectedGuessText != null)
+            selectedGuessText.text = "No song selected";
+
+        if (submitGuessButton != null)
+            submitGuessButton.interactable = false;
+
         PopulateImageContainer(guessClueDisplayArea, GameManager.Instance.currentEmojiClues);
-        guessInput.text = "";
+        RefreshGuessSongList();
+    }
+
+    public void RefreshGuessSongList()
+    {
+        if (guessSongListContainer == null || guessSongButtonPrefab == null) return;
+
+        ClearObjectContainer(guessSongListContainer);
+
+        foreach (string song in GameManager.Instance.songPool)
+        {
+            GameObject buttonObj = Instantiate(guessSongButtonPrefab, guessSongListContainer);
+
+            TMP_Text textComp = buttonObj.GetComponentInChildren<TMP_Text>();
+            if (textComp != null)
+                textComp.text = song;
+
+            Button buttonComp = buttonObj.GetComponent<Button>();
+            if (buttonComp != null)
+            {
+                string capturedSong = song;
+                buttonComp.onClick.RemoveAllListeners();
+                buttonComp.onClick.AddListener(() => OnGuessSongSelected(capturedSong));
+            }
+        }
+    }
+
+    public void OnGuessSongSelected(string songTitle)
+    {
+        selectedGuessSong = songTitle;
+
+        if (selectedGuessText != null)
+            selectedGuessText.text = selectedGuessSong;
+
+        if (submitGuessButton != null)
+            submitGuessButton.interactable = true;
     }
 
     public void OnSubmitGuessPressed()
     {
-        if (string.IsNullOrWhiteSpace(guessInput.text))
-            return;
+        if (string.IsNullOrWhiteSpace(selectedGuessSong)) return;
 
-        GameManager.Instance.SubmitGuess(guessInput.text);
+        GameManager.Instance.SubmitGuess(selectedGuessSong);
     }
+
+    public void OnSkipGuessPressed()
+    {
+        GameManager.Instance.SkipGuess();
+    }
+
+    // --------------------------------------------------
+    // RESULT PANEL
+    // --------------------------------------------------
 
     public void ShowResult(bool correct, string answer, PlayerData p1, PlayerData p2)
     {
         ShowOnly(resultPanel);
 
-        resultText.text = correct
-            ? "Correct! The answer was: " + answer
-            : "Wrong! The answer was: " + answer;
+        if (resultText != null)
+        {
+            resultText.text = correct
+                ? "Correct! The answer was: " + answer
+                : "Wrong! The answer was: " + answer;
+        }
 
-        scoreText.text = p1.playerName + ": " + p1.score + "\n" +
-                         p2.playerName + ": " + p2.score;
+        if (scoreText != null)
+        {
+            scoreText.text = p1.playerName + ": " + p1.score + "\n" +
+                             p2.playerName + ": " + p2.score;
+        }
     }
 
     public void OnNextRoundPressed()
     {
         GameManager.Instance.NextRound();
     }
-    private void Update()
+
+    // --------------------------------------------------
+    // PAUSE
+    // --------------------------------------------------
+
+    public void TogglePause()
+    {
+        if (pauseVisible)
+            ResumeGame();
+        else
+            PauseGame();
+    }
+
+    public void PauseGame()
+    {
+        if (pausePanel == null) return;
+
+        pauseVisible = true;
+        pausePanel.SetActive(true);
+        Time.timeScale = 0f;
+
+        if (pauseTitleText != null)
+            pauseTitleText.text = "Paused";
+    }
+
+    public void ResumeGame()
+    {
+        if (pausePanel == null) return;
+
+        pauseVisible = false;
+        pausePanel.SetActive(false);
+        Time.timeScale = 1f;
+    }
+
+    public void OnResumePressed()
+    {
+        ResumeGame();
+    }
+
+    public void OnPauseHowToPlayPressed()
+    {
+        if (howToPlayPanel != null)
+            howToPlayPanel.SetActive(true);
+    }
+
+    public void OnExitToMainMenuPressed()
+    {
+        Time.timeScale = 1f;
+        pauseVisible = false;
+        ShowMainMenu();
+    }
+
+    public void OnExitToDesktopPressed()
+    {
+        Application.Quit();
+    }
+
+    // --------------------------------------------------
+    // KEYBOARD INPUT
+    // --------------------------------------------------
+
+    private void HandleKeyboardInput()
     {
         if (Keyboard.current == null) return;
+
+        if (Keyboard.current.escapeKey.wasPressedThisFrame)
+        {
+            if (CanPauseCurrentScreen())
+                TogglePause();
+        }
 
         if (Keyboard.current.enterKey.wasPressedThisFrame ||
             Keyboard.current.numpadEnterKey.wasPressedThisFrame)
@@ -186,20 +727,32 @@ public class UIManager : MonoBehaviour
             HandleEnterPressed();
         }
     }
-    void HandleEnterPressed()
+
+    private void HandleEnterPressed()
     {
+        if (pauseVisible)
+            return;
+
         switch (GameManager.Instance.currentPhase)
         {
-            case RoundPhase.Start:
-                OnStartGamePressed();
+            case RoundPhase.MainMenu:
+                OnMainMenuStartPressed();
                 break;
 
-            case RoundPhase.ClueSetup:
-                OnDoneCluesPressed();
+            case RoundPhase.SongDraft:
+                OnAddDraftSongPressed();
                 break;
 
-            case RoundPhase.PassDevice:
-                OnReadyPressed();
+            case RoundPhase.LookAway:
+                OnContinueToClueSetupPressed();
+                break;
+
+            case RoundPhase.RoundSetup:
+                OnConfirmRoundPressed();
+                break;
+
+            case RoundPhase.PassToGuesser:
+                OnReadyToGuessPressed();
                 break;
 
             case RoundPhase.Guessing:
@@ -212,13 +765,31 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    bool TMP_InputFieldFocused()
+    private bool TMP_InputFieldFocused()
     {
         if (player1Input != null && player1Input.isFocused) return true;
         if (player2Input != null && player2Input.isFocused) return true;
-        if (songAnswerInput != null && songAnswerInput.isFocused) return true;
-        if (guessInput != null && guessInput.isFocused) return true;
+        if (draftSongInput != null && draftSongInput.isFocused) return true;
 
         return false;
+    }
+
+    private bool CanPauseCurrentScreen()
+    {
+        if (GameManager.Instance == null) return false;
+
+        switch (GameManager.Instance.currentPhase)
+        {
+            case RoundPhase.SongDraft:
+            case RoundPhase.LookAway:
+            case RoundPhase.RoundSetup:
+            case RoundPhase.PassToGuesser:
+            case RoundPhase.Guessing:
+            case RoundPhase.Result:
+                return true;
+
+            default:
+                return false;
+        }
     }
 }
