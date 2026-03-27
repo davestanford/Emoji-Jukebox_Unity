@@ -1,9 +1,10 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 public enum RoundPhase
 {
     MainMenu,
+    PlayerSetup,
     SongDraft,
     LookAway,
     RoundSetup,
@@ -256,17 +257,48 @@ public class GameManager : MonoBehaviour
     }
 
     // --------------------------------------------------
-    // NEXT ROUND
+    // MATCH STATE (NEW)
+    // --------------------------------------------------
+
+    public bool IsMatchOver()
+    {
+        return songPool.Count == 0;
+    }
+
+    public void ResetGame()
+    {
+        player1.score = 0;
+        player2.score = 0;
+
+        player1.playerName = "";
+        player2.playerName = "";
+
+        songPool.Clear();
+
+        currentSong = "";
+        currentEmojiClues.Clear();
+        pendingSong = "";
+        pendingEmojiClues.Clear();
+        currentRoundEmojiOptions.Clear();
+
+        currentDraftPlayerIndex = 0;
+        currentClueGiverIndex = 0;
+
+        currentPhase = RoundPhase.MainMenu;
+    }
+
+    // --------------------------------------------------
+    // NEXT ROUND (UPDATED)
     // --------------------------------------------------
 
     public void NextRound()
     {
         currentClueGiverIndex = currentClueGiverIndex == 0 ? 1 : 0;
 
-        if (songPool.Count == 0)
+        // 🔥 THIS IS THE FIX
+        if (IsMatchOver())
         {
-            currentPhase = RoundPhase.MainMenu;
-            UIManager.Instance.ShowMainMenu();
+            UIManager.Instance.ShowFinalResults(player1, player2);
             return;
         }
 

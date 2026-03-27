@@ -75,6 +75,11 @@ public class UIManager : MonoBehaviour
     public TMP_Text resultText;
     public TMP_Text scoreText;
 
+    [Header("Result Panel Buttons")]
+    public GameObject nextRoundButton;
+    public GameObject playAgainButton;
+    public GameObject mainMenuFromResultsButton;
+
     [Header("Pause Panel")]
     public TMP_Text pauseTitleText;
 
@@ -200,6 +205,9 @@ public class UIManager : MonoBehaviour
     public void ShowStartPanel()
     {
         ShowOnly(startPanel);
+
+        if (GameManager.Instance != null)
+            GameManager.Instance.currentPhase = RoundPhase.PlayerSetup;
     }
 
     public void OnBeginPlayerSetupPressed()
@@ -626,9 +634,24 @@ public class UIManager : MonoBehaviour
     // RESULT PANEL
     // --------------------------------------------------
 
+    private void SetRoundResultButtons()
+    {
+        if (nextRoundButton != null) nextRoundButton.SetActive(true);
+        if (playAgainButton != null) playAgainButton.SetActive(false);
+        if (mainMenuFromResultsButton != null) mainMenuFromResultsButton.SetActive(false);
+    }
+
+    private void SetFinalResultButtons()
+    {
+        if (nextRoundButton != null) nextRoundButton.SetActive(false);
+        if (playAgainButton != null) playAgainButton.SetActive(true);
+        if (mainMenuFromResultsButton != null) mainMenuFromResultsButton.SetActive(true);
+    }
+
     public void ShowResult(bool correct, string answer, PlayerData p1, PlayerData p2)
     {
         ShowOnly(resultPanel);
+        SetRoundResultButtons();
 
         if (resultText != null)
         {
@@ -644,9 +667,58 @@ public class UIManager : MonoBehaviour
         }
     }
 
+    public void ShowFinalResults(PlayerData p1, PlayerData p2)
+    {
+        ShowOnly(resultPanel);
+        SetFinalResultButtons();
+
+        if (resultText != null)
+        {
+            if (p1.score > p2.score)
+                resultText.text = "Final Results\n\n" + p1.playerName + " wins!";
+            else if (p2.score > p1.score)
+                resultText.text = "Final Results\n\n" + p2.playerName + " wins!";
+            else
+                resultText.text = "Final Results\n\nIt's a tie!";
+        }
+
+        if (scoreText != null)
+        {
+            scoreText.text = p1.playerName + ": " + p1.score + "\n" +
+                             p2.playerName + ": " + p2.score;
+        }
+
+        if (GameManager.Instance != null)
+            GameManager.Instance.currentPhase = RoundPhase.Result;
+    }
+
     public void OnNextRoundPressed()
     {
+        if (GameManager.Instance == null) return;
+
+        if (GameManager.Instance.IsMatchOver())
+        {
+            ShowFinalResults(GameManager.Instance.player1, GameManager.Instance.player2);
+            return;
+        }
+
         GameManager.Instance.NextRound();
+    }
+
+    public void OnPlayAgainPressed()
+    {
+        if (GameManager.Instance == null) return;
+
+        GameManager.Instance.ResetGame();
+        ShowStartPanel();
+    }
+
+    public void OnResultsMainMenuPressed()
+    {
+        if (GameManager.Instance != null)
+            GameManager.Instance.ResetGame();
+
+        ShowMainMenu();
     }
 
     // --------------------------------------------------
@@ -737,6 +809,10 @@ public class UIManager : MonoBehaviour
         {
             case RoundPhase.MainMenu:
                 OnMainMenuStartPressed();
+                break;
+
+            case RoundPhase.PlayerSetup:
+                OnBeginPlayerSetupPressed();
                 break;
 
             case RoundPhase.SongDraft:
