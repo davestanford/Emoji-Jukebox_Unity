@@ -59,6 +59,7 @@ public class UIManager : MonoBehaviour
     public Transform emojiPickerOptionsContainer;
     public Transform emojiPickerSelectedContainer;
     public GameObject emojiButtonPrefab;
+    public Button backspaceButton;
 
     [Header("Pass Panel")]
     public TMP_Text passText;
@@ -492,6 +493,10 @@ public class UIManager : MonoBehaviour
 
             emojiPickerCountText.text = "Emoji Options: " + optionCount;
         }
+
+        if (backspaceButton != null)
+            backspaceButton.interactable = GameManager.Instance.pendingEmojiClues != null &&
+                                           GameManager.Instance.pendingEmojiClues.Count > 0;
 
         RefreshEmojiOptionButtons();
         PopulateImageContainer(emojiPickerSelectedContainer, GameManager.Instance.pendingEmojiClues);

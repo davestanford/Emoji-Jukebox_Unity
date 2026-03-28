@@ -218,6 +218,20 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    public void RemoveLastEmoji()
+    {
+        if (pendingEmojiClues == null || pendingEmojiClues.Count == 0)
+        {
+            Debug.Log("No emojis to remove");
+            return;
+        }
+
+        pendingEmojiClues.RemoveAt(pendingEmojiClues.Count - 1);
+
+        UIManager.Instance.RefreshClueSetupPanel();
+        UIManager.Instance.RefreshEmojiPickerPanel();
+    }
+
     // --------------------------------------------------
     // GUESS PHASE
     // --------------------------------------------------
