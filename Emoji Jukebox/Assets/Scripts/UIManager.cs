@@ -1,3 +1,4 @@
+﻿using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -26,6 +27,9 @@ public class UIManager : MonoBehaviour
     [Header("Start Panel")]
     public TMP_InputField player1Input;
     public TMP_InputField player2Input;
+    public Button startGameButton;
+    [SerializeField] private float enabledStartButtonAlpha = 1f;
+    [SerializeField] private float disabledStartButtonAlpha = 0.45f;
 
     [Header("Song Draft Panel")]
     public TMP_Text draftTurnText;
@@ -34,10 +38,18 @@ public class UIManager : MonoBehaviour
     public TMP_InputField draftSongInput;
     public Transform draftSongListContainer;
     public GameObject draftSongListItemPrefab;
+    public Button addSongButton;
+    public Button skipSongButton;
     public Button startMatchButton;
+    [SerializeField] private float draftErrorDuration = 2.5f;
+    [SerializeField] private float enabledDraftButtonAlpha = 1f;
+    [SerializeField] private float disabledDraftButtonAlpha = 0.4f;
+    private Coroutine draftErrorRoutine;
+    private bool wasStartMatchReadyLastRefresh = false;
 
     [Header("Look Away Panel")]
     public TMP_Text lookAwayText;
+    public Button continueButton;
 
     [Header("Clue Setup Panel")]
     public TMP_Text clueSetupTurnText;
@@ -63,6 +75,7 @@ public class UIManager : MonoBehaviour
 
     [Header("Pass Panel")]
     public TMP_Text passText;
+    public Button readyToGuessButton;
 
     [Header("Guess Panel")]
     public TMP_Text guessTurnText;
@@ -71,6 +84,12 @@ public class UIManager : MonoBehaviour
     public GameObject guessSongButtonPrefab;
     public TMP_Text selectedGuessText;
     public Button submitGuessButton;
+
+    [Header("Guess Icons")]
+    public Image guessOneIcon;
+    public Image guessTwoIcon;
+    [SerializeField] private float activeGuessAlpha = 1f;
+    [SerializeField] private float usedGuessAlpha = 0.25f;
 
     [Header("Result Panel")]
     public TMP_Text resultText;
@@ -84,8 +103,15 @@ public class UIManager : MonoBehaviour
     [Header("Pause Panel")]
     public TMP_Text pauseTitleText;
 
+    [Header("Timer UI")]
+    public TMP_Text clueSetupTimerText;
+    public TMP_Text chooseSongTimerText;
+    public TMP_Text chooseEmojiTimerText;
+    public TMP_Text guessTimerText;
+
     private bool pauseVisible = false;
     private string selectedGuessSong = "";
+    private Dictionary<Button, Coroutine> buttonPulseRoutines = new Dictionary<Button, Coroutine>();
 
     private void Awake()
     {
@@ -97,12 +123,195 @@ public class UIManager : MonoBehaviour
 
     private void Start()
     {
+        if (player1Input != null)
+            player1Input.onValueChanged.AddListener(_ => ValidateStartButton());
+
+        if (player2Input != null)
+            player2Input.onValueChanged.AddListener(_ => ValidateStartButton());
+
         ShowMainMenu();
+        ValidateStartButton();
+
+        if (draftErrorText != null)
+        {
+            draftErrorText.text = "";
+            draftErrorText.gameObject.SetActive(false);
+        }
     }
 
     private void Update()
     {
         HandleKeyboardInput();
+    }
+
+    // --------------------------------------------------
+    // START PANEL VALIDATION
+    // --------------------------------------------------
+
+    private void ValidateStartButton()
+    {
+        if (startGameButton == null)
+            return;
+
+        bool p1Valid = player1Input != null && !string.IsNullOrWhiteSpace(player1Input.text);
+        bool p2Valid = player2Input != null && !string.IsNullOrWhiteSpace(player2Input.text);
+
+        startGameButton.interactable = p1Valid && p2Valid;
+        UpdateStartGameButtonVisual();
+
+        if (startGameButton.interactable)
+            StartButtonPulse(startGameButton);
+        else
+            StopButtonPulse(startGameButton);
+    }
+
+    private void UpdateStartGameButtonVisual()
+    {
+        if (startGameButton == null)
+            return;
+
+        float targetAlpha = startGameButton.interactable
+            ? enabledStartButtonAlpha
+            : disabledStartButtonAlpha;
+
+        Image buttonImage = startGameButton.GetComponent<Image>();
+        if (buttonImage != null)
+        {
+            Color c = buttonImage.color;
+            c.a = targetAlpha;
+            buttonImage.color = c;
+        }
+
+        TMP_Text buttonText = startGameButton.GetComponentInChildren<TMP_Text>();
+        if (buttonText != null)
+        {
+            Color c = buttonText.color;
+            c.a = targetAlpha;
+            buttonText.color = c;
+        }
+    }
+
+    // --------------------------------------------------
+    // DRAFT ERROR MESSAGE
+    // --------------------------------------------------
+
+    public void ShowDraftError(string message)
+    {
+        if (draftErrorText == null) return;
+
+        if (draftErrorRoutine != null)
+            StopCoroutine(draftErrorRoutine);
+
+        draftErrorText.text = message;
+        draftErrorText.gameObject.SetActive(true);
+
+        Color c = draftErrorText.color;
+        c.a = 1f;
+        draftErrorText.color = c;
+
+        draftErrorRoutine = StartCoroutine(HideDraftErrorAfterTime());
+    }
+
+    private IEnumerator HideDraftErrorAfterTime()
+    {
+        yield return new WaitForSeconds(draftErrorDuration);
+
+        if (draftErrorText == null)
+        {
+            draftErrorRoutine = null;
+            yield break;
+        }
+
+        float fadeTime = 0.4f;
+        float t = 0f;
+
+        Color startColor = draftErrorText.color;
+
+        while (t < fadeTime)
+        {
+            t += Time.deltaTime;
+            float alpha = Mathf.Lerp(1f, 0f, t / fadeTime);
+
+            draftErrorText.color = new Color(startColor.r, startColor.g, startColor.b, alpha);
+            yield return null;
+        }
+
+        draftErrorText.text = "";
+        draftErrorText.gameObject.SetActive(false);
+        draftErrorText.color = new Color(startColor.r, startColor.g, startColor.b, 1f);
+
+        draftErrorRoutine = null;
+    }
+
+    // --------------------------------------------------
+    // GENERIC BUTTON PULSE
+    // --------------------------------------------------
+
+    private void StartButtonPulse(Button button, float scaleMultiplier = 1.08f, float halfCycleDuration = 0.5f)
+    {
+        if (button == null) return;
+        if (buttonPulseRoutines.ContainsKey(button)) return;
+
+        Coroutine routine = StartCoroutine(PulseButtonRoutine(button, scaleMultiplier, halfCycleDuration));
+        buttonPulseRoutines.Add(button, routine);
+    }
+
+    private void StopButtonPulse(Button button)
+    {
+        if (button == null) return;
+
+        if (buttonPulseRoutines.TryGetValue(button, out Coroutine routine))
+        {
+            StopCoroutine(routine);
+            buttonPulseRoutines.Remove(button);
+        }
+
+        button.transform.localScale = Vector3.one;
+    }
+
+    private void StopAllButtonPulses()
+    {
+        foreach (var pair in buttonPulseRoutines)
+        {
+            if (pair.Value != null)
+                StopCoroutine(pair.Value);
+
+            if (pair.Key != null)
+                pair.Key.transform.localScale = Vector3.one;
+        }
+
+        buttonPulseRoutines.Clear();
+    }
+
+    private IEnumerator PulseButtonRoutine(Button button, float scaleMultiplier, float halfCycleDuration)
+    {
+        Vector3 startScale = Vector3.one;
+        Vector3 endScale = Vector3.one * scaleMultiplier;
+
+        while (button != null)
+        {
+            float t = 0f;
+
+            while (t < halfCycleDuration)
+            {
+                t += Time.deltaTime;
+                float lerp = Mathf.SmoothStep(0f, 1f, t / halfCycleDuration);
+                if (button != null)
+                    button.transform.localScale = Vector3.Lerp(startScale, endScale, lerp);
+                yield return null;
+            }
+
+            t = 0f;
+
+            while (t < halfCycleDuration)
+            {
+                t += Time.deltaTime;
+                float lerp = Mathf.SmoothStep(0f, 1f, t / halfCycleDuration);
+                if (button != null)
+                    button.transform.localScale = Vector3.Lerp(endScale, startScale, lerp);
+                yield return null;
+            }
+        }
     }
 
     // --------------------------------------------------
@@ -129,6 +338,7 @@ public class UIManager : MonoBehaviour
     private void ShowOnly(GameObject panelToShow)
     {
         HideAllPanels();
+        StopAllButtonPulses();
 
         if (panelToShow != null)
             panelToShow.SetActive(true);
@@ -186,6 +396,27 @@ public class UIManager : MonoBehaviour
         }
     }
 
+    private void SetButtonAlpha(Button button, float alpha)
+    {
+        if (button == null) return;
+
+        Image img = button.GetComponent<Image>();
+        if (img != null)
+        {
+            Color c = img.color;
+            c.a = alpha;
+            img.color = c;
+        }
+
+        TMP_Text txt = button.GetComponentInChildren<TMP_Text>();
+        if (txt != null)
+        {
+            Color c = txt.color;
+            c.a = alpha;
+            txt.color = c;
+        }
+    }
+
     // --------------------------------------------------
     // MAIN MENU
     // --------------------------------------------------
@@ -209,10 +440,15 @@ public class UIManager : MonoBehaviour
 
         if (GameManager.Instance != null)
             GameManager.Instance.currentPhase = RoundPhase.PlayerSetup;
+
+        ValidateStartButton();
     }
 
     public void OnBeginPlayerSetupPressed()
     {
+        if (startGameButton != null && !startGameButton.interactable)
+            return;
+
         string p1 = player1Input != null ? player1Input.text : "Player 1";
         string p2 = player2Input != null ? player2Input.text : "Player 2";
 
@@ -257,17 +493,58 @@ public class UIManager : MonoBehaviour
     {
         if (GameManager.Instance == null) return;
 
+        bool isFull = GameManager.Instance.IsSongPoolFull();
+
         if (draftTurnText != null)
-            draftTurnText.text = GameManager.Instance.GetCurrentDraftPlayerName() + ", add a song";
+        {
+            if (isFull)
+            {
+                draftTurnText.text = "Song list complete!";
+            }
+            else
+            {
+                draftTurnText.text = GameManager.Instance.GetCurrentDraftPlayerName() + ", add a song";
+            }
+        }
 
         if (draftPoolCountText != null)
             draftPoolCountText.text = "Songs: " + GameManager.Instance.songPool.Count + " / " + GameManager.Instance.maxSongsInPool;
 
         if (startMatchButton != null)
-            startMatchButton.interactable = GameManager.Instance.IsSongPoolFull();
+            startMatchButton.interactable = isFull;
+
+        if (addSongButton != null)
+            addSongButton.interactable = !isFull;
+
+        if (skipSongButton != null)
+            skipSongButton.interactable = !isFull;
+
+        SetButtonAlpha(addSongButton, isFull ? disabledDraftButtonAlpha : enabledDraftButtonAlpha);
+        SetButtonAlpha(skipSongButton, isFull ? disabledDraftButtonAlpha : enabledDraftButtonAlpha);
+        SetButtonAlpha(startMatchButton, isFull ? enabledDraftButtonAlpha : disabledDraftButtonAlpha);
+
+        if (isFull && !wasStartMatchReadyLastRefresh)
+            StartButtonPulse(startMatchButton);
+        else if (!isFull)
+            StopButtonPulse(startMatchButton);
+
+        wasStartMatchReadyLastRefresh = isFull;
+
+        if (draftErrorRoutine != null)
+        {
+            StopCoroutine(draftErrorRoutine);
+            draftErrorRoutine = null;
+        }
 
         if (draftErrorText != null)
+        {
             draftErrorText.text = "";
+            draftErrorText.gameObject.SetActive(false);
+
+            Color c = draftErrorText.color;
+            c.a = 1f;
+            draftErrorText.color = c;
+        }
 
         if (draftSongInput != null)
             draftSongInput.text = "";
@@ -294,13 +571,13 @@ public class UIManager : MonoBehaviour
     public void OnAddDraftSongPressed()
     {
         if (draftSongInput == null) return;
+        if (addSongButton != null && !addSongButton.interactable) return;
 
         bool success = GameManager.Instance.AddSongToPool(draftSongInput.text);
 
         if (!success)
         {
-            if (draftErrorText != null)
-                draftErrorText.text = "Enter a unique song title.";
+            ShowDraftError("Enter a unique song title.");
             return;
         }
 
@@ -309,6 +586,8 @@ public class UIManager : MonoBehaviour
 
     public void OnSkipDraftSongPressed()
     {
+        if (skipSongButton != null && !skipSongButton.interactable) return;
+
         GameManager.Instance.SkipSongDraftTurn();
         RefreshSongDraftPanel();
     }
@@ -317,6 +596,8 @@ public class UIManager : MonoBehaviour
     {
         if (!GameManager.Instance.IsSongPoolFull())
             return;
+
+        StopButtonPulse(startMatchButton);
 
         GameManager.Instance.StartRoundSetup();
         ShowLookAwayPanel();
@@ -333,18 +614,25 @@ public class UIManager : MonoBehaviour
         if (GameManager.Instance != null)
             GameManager.Instance.currentPhase = RoundPhase.LookAway;
 
-        if (lookAwayText != null)
+        if (lookAwayText != null && GameManager.Instance != null)
         {
+            string currentPlayer = GameManager.Instance.GetCurrentTurnPlayerName();
+            string otherPlayer = GameManager.Instance.GetGuesserName();
+
             lookAwayText.text =
-                "PLAYER 2 LOOK AWAY\n\n" +
-                GameManager.Instance.GetCurrentTurnPlayerName() +
-                ", choose your song and emoji clues.\n\n" +
+                "<size=120><b>" + otherPlayer + " LOOK AWAY</b></size>\n\n" +
+                currentPlayer + ", get ready to choose your song and emoji clues!\n\n" +
                 "Press continue when ready.";
         }
+
+        if (continueButton != null)
+            StartButtonPulse(continueButton);
     }
 
     public void OnContinueToClueSetupPressed()
     {
+        StopButtonPulse(continueButton);
+
         if (GameManager.Instance != null)
             GameManager.Instance.BeginClueSetup();
 
@@ -382,13 +670,18 @@ public class UIManager : MonoBehaviour
 
         PopulateImageContainer(selectedEmojiDisplayArea, GameManager.Instance.pendingEmojiClues);
 
+        bool hasSong = !string.IsNullOrWhiteSpace(GameManager.Instance.pendingSong);
+        bool hasEmojis = GameManager.Instance.pendingEmojiClues != null &&
+                         GameManager.Instance.pendingEmojiClues.Count > 0;
+
         if (confirmRoundButton != null)
         {
-            bool hasSong = !string.IsNullOrWhiteSpace(GameManager.Instance.pendingSong);
-            bool hasEmojis = GameManager.Instance.pendingEmojiClues != null &&
-                             GameManager.Instance.pendingEmojiClues.Count > 0;
-
             confirmRoundButton.interactable = hasSong && hasEmojis;
+
+            if (confirmRoundButton.interactable)
+                StartButtonPulse(confirmRoundButton);
+            else
+                StopButtonPulse(confirmRoundButton);
         }
     }
 
@@ -429,6 +722,8 @@ public class UIManager : MonoBehaviour
 
     public void OnConfirmRoundPressed()
     {
+        StopButtonPulse(confirmRoundButton);
+
         bool success = GameManager.Instance.ConfirmRoundSetup();
         if (!success) return;
 
@@ -487,11 +782,9 @@ public class UIManager : MonoBehaviour
 
         if (emojiPickerCountText != null)
         {
-            int optionCount = GameManager.Instance.currentRoundEmojiOptions != null
-                ? GameManager.Instance.currentRoundEmojiOptions.Count
-                : 0;
-
-            emojiPickerCountText.text = "Emoji Options: " + optionCount;
+            int current = GameManager.Instance.pendingEmojiClues.Count;
+            int max = GameManager.Instance.MaxEmojisPerClue;
+            emojiPickerCountText.text = $"Selected: {current} / {max}";
         }
 
         if (backspaceButton != null)
@@ -528,6 +821,7 @@ public class UIManager : MonoBehaviour
             if (buttonComp != null)
             {
                 Sprite capturedSprite = emojiSprite;
+                buttonComp.interactable = GameManager.Instance.CanAddMorePendingEmojis();
                 buttonComp.onClick.RemoveAllListeners();
                 buttonComp.onClick.AddListener(() => OnEmojiOptionPressed(capturedSprite));
             }
@@ -536,7 +830,14 @@ public class UIManager : MonoBehaviour
 
     public void OnEmojiOptionPressed(Sprite emojiSprite)
     {
-        GameManager.Instance.AddPendingEmoji(emojiSprite);
+        bool added = GameManager.Instance.AddPendingEmoji(emojiSprite);
+
+        if (!added)
+        {
+            Debug.Log("Max emoji limit reached!");
+            return;
+        }
+
         RefreshEmojiPickerPanel();
         RefreshClueSetupPanel();
     }
@@ -557,10 +858,15 @@ public class UIManager : MonoBehaviour
 
         if (passText != null)
             passText.text = GameManager.Instance.GetGuesserName() + ", get ready to guess";
+
+        if (readyToGuessButton != null)
+            StartButtonPulse(readyToGuessButton);
     }
 
     public void OnReadyToGuessPressed()
     {
+        StopButtonPulse(readyToGuessButton);
+
         GameManager.Instance.BeginGuessing();
         ShowGuessPanel();
     }
@@ -582,10 +888,14 @@ public class UIManager : MonoBehaviour
             selectedGuessText.text = "No song selected";
 
         if (submitGuessButton != null)
+        {
             submitGuessButton.interactable = false;
+            StopButtonPulse(submitGuessButton);
+        }
 
         PopulateImageContainer(guessClueDisplayArea, GameManager.Instance.currentEmojiClues);
         RefreshGuessSongList();
+        RefreshGuessIcons();
     }
 
     public void RefreshGuessSongList()
@@ -620,19 +930,58 @@ public class UIManager : MonoBehaviour
             selectedGuessText.text = selectedGuessSong;
 
         if (submitGuessButton != null)
+        {
             submitGuessButton.interactable = true;
+            StartButtonPulse(submitGuessButton);
+        }
     }
 
     public void OnSubmitGuessPressed()
     {
         if (string.IsNullOrWhiteSpace(selectedGuessSong)) return;
 
+        StopButtonPulse(submitGuessButton);
+
         GameManager.Instance.SubmitGuess(selectedGuessSong);
+
+        if (GameManager.Instance != null && GameManager.Instance.currentPhase == RoundPhase.Guessing)
+        {
+            selectedGuessSong = "";
+
+            if (selectedGuessText != null)
+                selectedGuessText.text = "No song selected";
+
+            if (submitGuessButton != null)
+            {
+                submitGuessButton.interactable = false;
+                StopButtonPulse(submitGuessButton);
+            }
+        }
     }
 
     public void OnSkipGuessPressed()
     {
+        StopButtonPulse(submitGuessButton);
         GameManager.Instance.SkipGuess();
+    }
+
+    public void RefreshGuessIcons()
+    {
+        if (GameManager.Instance == null) return;
+
+        int remaining = GameManager.Instance.GuessesRemaining;
+
+        SetGuessIcon(guessOneIcon, remaining >= 1);
+        SetGuessIcon(guessTwoIcon, remaining >= 2);
+    }
+
+    private void SetGuessIcon(Image icon, bool active)
+    {
+        if (icon == null) return;
+
+        Color c = icon.color;
+        c.a = active ? activeGuessAlpha : usedGuessAlpha;
+        icon.color = c;
     }
 
     // --------------------------------------------------
@@ -653,16 +1002,17 @@ public class UIManager : MonoBehaviour
         if (mainMenuFromResultsButton != null) mainMenuFromResultsButton.SetActive(true);
     }
 
-    public void ShowResult(bool correct, string answer, PlayerData p1, PlayerData p2)
+    public void ShowResult(bool correct, string answer, PlayerData p1, PlayerData p2, int pointsEarned = 0)
     {
         ShowOnly(resultPanel);
         SetRoundResultButtons();
 
         if (resultText != null)
         {
-            resultText.text = correct
-                ? "Correct! The answer was: " + answer
-                : "Wrong! The answer was: " + answer;
+            if (correct)
+                resultText.text = $"Correct! The answer was: {answer}\n+{pointsEarned} point(s)";
+            else
+                resultText.text = "Wrong! The answer was: " + answer;
         }
 
         if (scoreText != null)
@@ -872,5 +1222,26 @@ public class UIManager : MonoBehaviour
             default:
                 return false;
         }
+    }
+
+    // --------------------------------------------------
+    // TIMER DISPLAY
+    // --------------------------------------------------
+
+    public void UpdateTimerDisplay(int secondsLeft)
+    {
+        string formatted = $"{secondsLeft / 60}:{secondsLeft % 60:00}";
+
+        if (clueSetupTimerText != null)
+            clueSetupTimerText.text = formatted;
+
+        if (chooseSongTimerText != null)
+            chooseSongTimerText.text = formatted;
+
+        if (chooseEmojiTimerText != null)
+            chooseEmojiTimerText.text = formatted;
+
+        if (guessTimerText != null)
+            guessTimerText.text = formatted;
     }
 }
