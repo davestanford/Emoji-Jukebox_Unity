@@ -11,6 +11,8 @@ GameObject:
   - component: {fileID: 5743350802130707362}
   - component: {fileID: 3042960199951034662}
   - component: {fileID: 1998287950685311275}
+  - component: {fileID: 1838193834813762476}
+  - component: {fileID: 3725788674337389428}
   m_Layer: 5
   m_Name: ClueImagePrefab
   m_TagString: Untagged
@@ -65,7 +67,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: -205270267638800340, guid: 72e9832ce0474394e98201eac0242653, type: 3}
+  m_Sprite: {fileID: 6729145494720461541, guid: 031b58e1ed22dcb4da6a51b617c2c304, type: 3}
   m_Type: 0
   m_PreserveAspect: 1
   m_FillCenter: 1
@@ -75,3 +77,41 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
+--- !u!114 &1838193834813762476
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7536740716764984440}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b07e0241b64e83c4f9c916a696548073, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EmojiClueAnim
+  hiddenScale: 0.05
+  overshootScale: 1.12
+  finalScale: 1
+  revealDuration: 0.35
+  popPhasePercent: 0.7
+  bobAmount: 6
+  bobSpeed: 2.2
+  rotateAmount: 4
+  rotateSpeed: 1.8
+--- !u!114 &3725788674337389428
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7536740716764984440}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f09a1c1bbb822304981dbd915b51a1a7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EmojiHoverJiggle
+  normalScale: 1
+  hoverScale: 2
+  scaleSpeed: 12
+  jiggleAngle: 6
+  jiggleSpeed: 18

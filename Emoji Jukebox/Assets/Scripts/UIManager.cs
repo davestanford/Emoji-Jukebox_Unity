@@ -85,6 +85,9 @@ public class UIManager : MonoBehaviour
     public TMP_Text selectedGuessText;
     public Button submitGuessButton;
 
+    [Header("Emoji Reveal Timing")]
+    [SerializeField] private float emojiRevealStagger = 0.25f;
+
     [Header("Guess Icons")]
     public Image guessOneIcon;
     public Image guessTwoIcon;
@@ -396,6 +399,52 @@ public class UIManager : MonoBehaviour
         }
     }
 
+    private void PopulateAnimatedImageContainer(Transform container, List<Sprite> clues)
+    {
+        if (container == null)
+        {
+            Debug.LogError("PopulateAnimatedImageContainer: container is NULL");
+            return;
+        }
+
+        if (clueImagePrefab == null)
+        {
+            Debug.LogError("PopulateAnimatedImageContainer: clueImagePrefab is NULL");
+            return;
+        }
+
+        ClearObjectContainer(container);
+
+        if (clues == null)
+        {
+            Debug.LogWarning("PopulateAnimatedImageContainer: clues list is NULL");
+            return;
+        }
+
+        for (int i = 0; i < clues.Count; i++)
+        {
+            Sprite clueSprite = clues[i];
+            if (clueSprite == null)
+                continue;
+
+            GameObject newImageObj = Instantiate(clueImagePrefab, container);
+
+            Image imageComp = newImageObj.GetComponent<Image>();
+            if (imageComp != null)
+            {
+                imageComp.sprite = clueSprite;
+                imageComp.preserveAspect = true;
+            }
+
+            EmojiClueAnim anim = newImageObj.GetComponent<EmojiClueAnim>();
+            if (anim != null)
+            {
+                float delay = i * emojiRevealStagger;
+                anim.Play(delay);
+            }
+        }
+    }
+
     private void SetButtonAlpha(Button button, float alpha)
     {
         if (button == null) return;
@@ -431,7 +480,17 @@ public class UIManager : MonoBehaviour
 
     public void OnMainMenuStartPressed()
     {
-        ShowStartPanel();
+        if (TransitionManager.Instance != null)
+        {
+            TransitionManager.Instance.PlayBlackFade(() =>
+            {
+                ShowStartPanel();
+            });
+        }
+        else
+        {
+            ShowStartPanel();
+        }
     }
 
     public void ShowStartPanel()
@@ -455,8 +514,21 @@ public class UIManager : MonoBehaviour
         if (string.IsNullOrWhiteSpace(p1)) p1 = "Player 1";
         if (string.IsNullOrWhiteSpace(p2)) p2 = "Player 2";
 
-        GameManager.Instance.StartGame(p1, p2);
-        ShowSongDraftPanel();
+        StopButtonPulse(startGameButton);
+
+        if (TransitionManager.Instance != null)
+        {
+            TransitionManager.Instance.PlayBlackFade(() =>
+            {
+                GameManager.Instance.StartGame(p1, p2);
+                ShowSongDraftPanel();
+            });
+        }
+        else
+        {
+            GameManager.Instance.StartGame(p1, p2);
+            ShowSongDraftPanel();
+        }
     }
 
     public void OnHowToPlayPressed()
@@ -598,6 +670,15 @@ public class UIManager : MonoBehaviour
             return;
 
         StopButtonPulse(startMatchButton);
+        StartCoroutine(BeginMatchWithFlash());
+    }
+
+    private IEnumerator BeginMatchWithFlash()
+    {
+        if (TransitionManager.Instance != null)
+            TransitionManager.Instance.PlayWhiteFlash();
+
+        yield return new WaitForSecondsRealtime(0.08f);
 
         GameManager.Instance.StartRoundSetup();
         ShowLookAwayPanel();
@@ -620,9 +701,8 @@ public class UIManager : MonoBehaviour
             string otherPlayer = GameManager.Instance.GetGuesserName();
 
             lookAwayText.text =
-                "<size=120><b>" + otherPlayer + " LOOK AWAY</b></size>\n\n" +
-                currentPlayer + ", get ready to choose your song and emoji clues!\n\n" +
-                "Press continue when ready.";
+                
+                currentPlayer;
         }
 
         if (continueButton != null)
@@ -633,10 +713,23 @@ public class UIManager : MonoBehaviour
     {
         StopButtonPulse(continueButton);
 
-        if (GameManager.Instance != null)
-            GameManager.Instance.BeginClueSetup();
+        if (TransitionManager.Instance != null)
+        {
+            TransitionManager.Instance.PlayBlackFade(() =>
+            {
+                if (GameManager.Instance != null)
+                    GameManager.Instance.BeginClueSetup();
 
-        ShowClueSetupPanel();
+                ShowClueSetupPanel();
+            });
+        }
+        else
+        {
+            if (GameManager.Instance != null)
+                GameManager.Instance.BeginClueSetup();
+
+            ShowClueSetupPanel();
+        }
     }
 
     // --------------------------------------------------
@@ -857,7 +950,7 @@ public class UIManager : MonoBehaviour
         ShowOnly(passPanel);
 
         if (passText != null)
-            passText.text = GameManager.Instance.GetGuesserName() + ", get ready to guess";
+            passText.text = GameManager.Instance.GetGuesserName();
 
         if (readyToGuessButton != null)
             StartButtonPulse(readyToGuessButton);
@@ -867,8 +960,19 @@ public class UIManager : MonoBehaviour
     {
         StopButtonPulse(readyToGuessButton);
 
-        GameManager.Instance.BeginGuessing();
-        ShowGuessPanel();
+        if (TransitionManager.Instance != null)
+        {
+            TransitionManager.Instance.PlayBlackFade(() =>
+            {
+                GameManager.Instance.BeginGuessing();
+                ShowGuessPanel();
+            });
+        }
+        else
+        {
+            GameManager.Instance.BeginGuessing();
+            ShowGuessPanel();
+        }
     }
 
     // --------------------------------------------------
@@ -893,7 +997,7 @@ public class UIManager : MonoBehaviour
             StopButtonPulse(submitGuessButton);
         }
 
-        PopulateImageContainer(guessClueDisplayArea, GameManager.Instance.currentEmojiClues);
+        PopulateAnimatedImageContainer(guessClueDisplayArea, GameManager.Instance.currentEmojiClues);
         RefreshGuessSongList();
         RefreshGuessIcons();
     }
@@ -1051,31 +1155,72 @@ public class UIManager : MonoBehaviour
     {
         if (GameManager.Instance == null) return;
 
-        if (GameManager.Instance.IsMatchOver())
+        if (TransitionManager.Instance != null)
         {
-            ShowFinalResults(GameManager.Instance.player1, GameManager.Instance.player2);
-            return;
+            TransitionManager.Instance.PlayBlackFade(() =>
+            {
+                if (GameManager.Instance.IsMatchOver())
+                {
+                    ShowFinalResults(GameManager.Instance.player1, GameManager.Instance.player2);
+                }
+                else
+                {
+                    GameManager.Instance.NextRound();
+                }
+            });
         }
-
-        GameManager.Instance.NextRound();
+        else
+        {
+            if (GameManager.Instance.IsMatchOver())
+            {
+                ShowFinalResults(GameManager.Instance.player1, GameManager.Instance.player2);
+            }
+            else
+            {
+                GameManager.Instance.NextRound();
+            }
+        }
     }
 
     public void OnPlayAgainPressed()
     {
         if (GameManager.Instance == null) return;
 
-        GameManager.Instance.ResetGame();
-        ShowStartPanel();
+        if (TransitionManager.Instance != null)
+        {
+            TransitionManager.Instance.PlayBlackFade(() =>
+            {
+                GameManager.Instance.ResetGame();
+                ShowStartPanel();
+            });
+        }
+        else
+        {
+            GameManager.Instance.ResetGame();
+            ShowStartPanel();
+        }
     }
 
     public void OnResultsMainMenuPressed()
     {
-        if (GameManager.Instance != null)
-            GameManager.Instance.ResetGame();
+        if (TransitionManager.Instance != null)
+        {
+            TransitionManager.Instance.PlayBlackFade(() =>
+            {
+                if (GameManager.Instance != null)
+                    GameManager.Instance.ResetGame();
 
-        ShowMainMenu();
+                ShowMainMenu();
+            });
+        }
+        else
+        {
+            if (GameManager.Instance != null)
+                GameManager.Instance.ResetGame();
+
+            ShowMainMenu();
+        }
     }
-
     // --------------------------------------------------
     // PAUSE
     // --------------------------------------------------

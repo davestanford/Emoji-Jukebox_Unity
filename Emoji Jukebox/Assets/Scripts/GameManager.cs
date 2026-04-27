@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Collections;
 using UnityEngine;
 
 public enum RoundPhase
@@ -163,6 +164,10 @@ public class GameManager : MonoBehaviour
     private void SkipGuessFromTimer()
     {
         StopTimer();
+
+        // 🔴 TIMER FAILURE FLASH
+        if (TransitionManager.Instance != null)
+            TransitionManager.Instance.PlayRedFlash(0.08f, 0.3f);
 
         GetClueGiver().score += 1;
         songPool.Remove(currentSong);
@@ -419,21 +424,35 @@ public class GameManager : MonoBehaviour
         {
             StopTimer();
 
+            if (TransitionManager.Instance != null)
+                TransitionManager.Instance.PlayWhiteFlash();
+
+            // 📳 SCREEN SHAKE
+            if (ScreenShakeManager.Instance != null)
+                ScreenShakeManager.Instance.Shake(0.1f, 20f);
+
             int pointsAwarded = guessesRemaining == maxGuessesPerRound ? 2 : 1;
             GetGuesser().score += pointsAwarded;
 
             songPool.Remove(currentSong);
             currentPhase = RoundPhase.Result;
 
-            if (UIManager.Instance != null)
-            {
-                UIManager.Instance.ShowResult(true, currentSong, player1, player2, pointsAwarded);
-            }
-
+            StartCoroutine(ShowCorrectResultDelayed(pointsAwarded));
             return;
         }
 
         guessesRemaining--;
+
+        if (guessesRemaining > 1)
+        {
+            if (TransitionManager.Instance != null)
+                TransitionManager.Instance.PlayRedFlash();
+        }
+        else if (guessesRemaining == 1)
+        {
+            if (TransitionManager.Instance != null)
+                TransitionManager.Instance.PlayRedFlash(0.06f, 0.25f);
+        }
 
         if (UIManager.Instance != null)
         {
@@ -444,6 +463,9 @@ public class GameManager : MonoBehaviour
         {
             StopTimer();
 
+            if (TransitionManager.Instance != null)
+                TransitionManager.Instance.PlayRedFlash(0.08f, 0.3f);
+
             songPool.Remove(currentSong);
             currentPhase = RoundPhase.Result;
 
@@ -453,6 +475,18 @@ public class GameManager : MonoBehaviour
             }
         }
     }
+
+    private IEnumerator ShowCorrectResultDelayed(int pointsAwarded)
+    {
+        yield return new WaitForSecondsRealtime(0.1f);
+
+        if (UIManager.Instance != null)
+        {
+            UIManager.Instance.ShowResult(true, currentSong, player1, player2, pointsAwarded);
+        }
+    }
+
+
 
     public void SkipGuess()
     {
